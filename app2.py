@@ -206,10 +206,14 @@ if r <= 0:
 # =========================================================
 # РАСЧЁТ
 # =========================================================
-Y = np.linspace(0.1, 4, 300)   # горизонт расчёта — 4 года
+# Изменяем диапазон Y от 0 до 4 лет
+Y = np.linspace(0, 4, 400)   # горизонт расчёта от 0 до 4 лет
 
-# Расчет IRR
-irr = IRR(
+# Для расчетов исключаем Y=0, чтобы избежать деления на ноль в функции IRR
+Y_calc = Y[Y > 0]
+
+# Расчет IRR (только для Y > 0)
+irr_calc = IRR(
     Mvn=Mvn,
     Tvosst=Tvosst,
     Msod=Msod,
@@ -218,10 +222,10 @@ irr = IRR(
     Ktg=Ktg,
     Tpl=Tpl,
     Tvosstso=Tvosstso,
-    Y=Y
+    Y=Y_calc
 )
 
-# Расчет NPV
+# Расчет NPV (для всех Y, включая 0)
 npv = NPV(
     Mvn=Mvn,
     Tvosst=Tvosst,
@@ -235,9 +239,13 @@ npv = NPV(
     r=r
 )
 
+# Создаем полный массив IRR с NaN для Y=0
+irr = np.full_like(Y, np.nan)
+irr[Y > 0] = irr_calc
+
 # Интерполяция значений на 2-м и 4-м году
-irr_2 = np.interp(2, Y, irr) * 100
-irr_4 = np.interp(4, Y, irr) * 100
+irr_2 = np.interp(2, Y_calc, irr_calc) * 100 if len(Y_calc) > 0 else 0
+irr_4 = np.interp(4, Y_calc, irr_calc) * 100 if len(Y_calc) > 0 else 0
 npv_2 = np.interp(2, Y, npv)
 npv_4 = np.interp(4, Y, npv)
 
@@ -300,34 +308,99 @@ col_graph1, col_graph2 = st.columns(2)
 
 # График IRR
 with col_graph1:
-    fig1, ax1 = plt.subplots()
-    ax1.plot(Y, irr * 100, label='IRR', color='blue', linewidth=2)
-    ax1.axhline(y=r*100, color='red', linestyle='--', label=f'Ставка дисконтирования ({r*100:.1f}%)')
-    ax1.fill_between(Y, irr*100, r*100, where=(irr*100 > r*100), 
-                     color='green', alpha=0.3, label='IRR > r')
-    ax1.fill_between(Y, irr*100, r*100, where=(irr*100 <= r*100), 
-                     color='red', alpha=0.3, label='IRR ≤ r')
+    fig1, ax1 = plt.subplots(figsize=(10, 6))
+    
+    # Строим график IRR (пропускаем Y=0, где значение NaN)
+    mask = ~np.isnan(irr)
+    ax1.plot(Y[mask], irr[mask] * 100, label='IRR', color='blue', linewidth=2)
+    
+    # Горизонтальная линия ставки дисконтирования
+    ax1.axhline(y=r*100, color='red', linestyle='--', 
+                label=f'Ставка дисконтирования ({r*100:.1f}%)')
+    
+    # Закрашиваем области
+    if np.any(mask):
+        Y_masked = Y[mask]
+        irr_masked = irr[mask] * 100
+        
+        # Находим индекс, где IRR становится больше r
+        idx_above = irr_masked > r*100
+        idx_below = irr_masked <= r*100
+        
+        if np.any(idx_above):
+            ax1.fill_between(Y_masked[idx_above], irr_masked[idx_above], r*100, 
+                           color='green', alpha=0.3, label='IRR > r')
+        
+        if np.any(idx_below):
+            ax1.fill_between(Y_masked[idx_below], irr_masked[idx_below], r*100, 
+                           color='red', alpha=0.3, label='IRR ≤ r')
+    
+    # Вертикальные линии для 2 и 4 лет
+    ax1.axvline(x=2, color='gray', linestyle=':', alpha=0.5)
+    ax1.axvline(x=4, color='gray', linestyle=':', alpha=0.5)
+    
+    # Настройки графика
+    ax1.set_xlim(0, 4)  # Ось X от 0 до 4 лет
     ax1.set_xlabel("Время, лет")
     ax1.set_ylabel("IRR, %")
     ax1.set_title("Внутренняя норма доходности (IRR)")
     ax1.grid(True, alpha=0.3)
     ax1.legend()
+    
+    # Добавляем аннотации
+    if irr_2 > 0:
+        ax1.annotate(f'{irr_2:.1f}%', xy=(2, irr_2), xytext=(2.1, irr_2+5),
+                    arrowprops=dict(arrowstyle='->', color='blue'))
+    
+    if irr_4 > 0:
+        ax1.annotate(f'{irr_4:.1f}%', xy=(4, irr_4), xytext=(3.7, irr_4+5),
+                    arrowprops=dict(arrowstyle='->', color='blue'))
+    
     st.pyplot(fig1)
 
 # График NPV
 with col_graph2:
-    fig2, ax2 = plt.subplots()
-    ax2.plot(Y, npv / 1_000_000, label='NPV', color='green', linewidth=2)  # в млн руб
+    fig2, ax2 = plt.subplots(figsize=(10, 6))
+    
+    # Строим график NPV (в млн руб)
+    ax2.plot(Y, npv / 1_000_000, label='NPV', color='green', linewidth=2)
+    
+    # Горизонтальная линия нуля
     ax2.axhline(y=0, color='black', linestyle='-', alpha=0.5)
+    
+    # Вертикальные линии для 2 и 4 лет
+    ax2.axvline(x=2, color='gray', linestyle=':', alpha=0.5)
+    ax2.axvline(x=4, color='gray', linestyle=':', alpha=0.5)
+    
+    # Закрашиваем области выше и ниже нуля
     ax2.fill_between(Y, npv/1_000_000, 0, where=(npv/1_000_000 > 0), 
                      color='green', alpha=0.3, label='NPV > 0')
     ax2.fill_between(Y, npv/1_000_000, 0, where=(npv/1_000_000 <= 0), 
                      color='red', alpha=0.3, label='NPV ≤ 0')
+    
+    # Точка при Y=0 (начальные инвестиции)
+    ax2.scatter(0, -Mvn/1_000_000, color='red', s=100, zorder=5, 
+                label=f'Капвложения: {-Mvn/1_000_000:.1f} млн руб')
+    
+    # Настройки графика
+    ax2.set_xlim(0, 4)  # Ось X от 0 до 4 лет
+    ax2.set_ylim(min(-Mvn/1_000_000 - 5, npv.min()/1_000_000 - 5), 
+                 max(0, npv.max()/1_000_000 + 5))
     ax2.set_xlabel("Время, лет")
     ax2.set_ylabel("NPV, млн руб")
     ax2.set_title("Чистая приведенная стоимость (NPV)")
     ax2.grid(True, alpha=0.3)
     ax2.legend()
+    
+    # Добавляем аннотации
+    ax2.annotate(f'{npv_2/1_000_000:.1f} млн', xy=(2, npv_2/1_000_000), 
+                 xytext=(2.1, npv_2/1_000_000 + (npv_4/1_000_000 - npv_2/1_000_000)/4),
+                 arrowprops=dict(arrowstyle='->', color='green'))
+    
+    ax2.annotate(f'{npv_4/1_000_000:.1f} млн', xy=(4, npv_4/1_000_000), 
+                 xytext=(3.7, npv_4/1_000_000 + (npv_4/1_000_000 - npv_2/1_000_000)/4),
+                 arrowprops=dict(arrowstyle='->', color='green'))
+    
     st.pyplot(fig2)
 
 
@@ -345,15 +418,15 @@ if npv[-1] > 0:  # если проект в целом окупается
         st.info(f"**Срок окупаемости:** {payback_period:.1f} лет")
 
 # Расчет точки безубыточности по времени восстановления
-# Находим Tvosstso, при котором NPV = 0
-if r > 0:
-    # Решаем уравнение NPV = 0 относительно Tvosstso
-    # -Mvn + ((Cp*Kteh*Ktg*Tpl*(Tvosst - Tvosstso))/Tvosst - Msod) * (1 - exp(-r*Y))/r = 0
-    Tvosstso_break_even = Tvosst - (Msod + Mvn * r / (1 - np.exp(-r * 4))) * Tvosst / (Cp * Kteh * Ktg * Tpl)
+if r > 0 and Tvosst > 0 and Cp > 0 and Kteh > 0 and Ktg > 0 and Tpl > 0:
+    # Решаем уравнение NPV = 0 относительно Tvosstso при Y=4
+    Y_target = 4
+    Tvosstso_break_even = Tvosst - (Msod + Mvn * r / (1 - np.exp(-r * Y_target))) * Tvosst / (Cp * Kteh * Ktg * Tpl)
     
     if 0 < Tvosstso_break_even < Tvosst:
-        st.info(f"**Точка безубыточности по времени восстановления:** {Tvosstso_break_even:.1f} часов")
-        st.write(f"Для окупаемости проекта за 4 года время восстановления с системой должно быть не более {Tvosstso_break_even:.1f} часов")
+        st.info(f"**Точка безубыточности по времени восстановления (за 4 года):** {Tvosstso_break_even:.1f} часов")
+        improvement_percent = (Tvosst - Tvosstso_break_even) / Tvosst * 100
+        st.write(f"Для окупаемости проекта за 4 года система должна сокращать время восстановления минимум на {improvement_percent:.1f}% (с {Tvosst} до {Tvosstso_break_even:.1f} часов)")
 
 
 # =========================================================
@@ -362,8 +435,12 @@ if r > 0:
 st.markdown("### Описание текущего сценария")
 
 # Расчет денежного потока
-godovaya_ekonomiya = Cp * Kteh * (Tpl * Ktg / Tvosst) * (Tvosst - Tvosstso)
-godovoy_potok = godovaya_ekonomiya - Msod
+if Tvosst > 0:
+    godovaya_ekonomiya = Cp * Kteh * (Tpl * Ktg / Tvosst) * (Tvosst - Tvosstso)
+    godovoy_potok = godovaya_ekonomiya - Msod
+else:
+    godovaya_ekonomiya = 0
+    godovoy_potok = 0
 
 st.write(
     f"""
@@ -382,14 +459,55 @@ st.write(
 - **Годовая экономия от сокращения простоев:** {godovaya_ekonomiya:,.0f} руб/год
 - **Годовой денежный поток:** {godovoy_potok:,.0f} руб/год
 - **IRR проекта (4 года):** {irr_4:.1f}%
-- **NPV проекта (4 года):** {npv_4:,.0f} руб
+- **NPV проекта (4 года):** {npv_4:,.0f} руб ({npv_4/1_000_000:.1f} млн руб)
 
 **Интерпретация результатов:**
 - Проект считается привлекательным при **IRR > r** и **NPV > 0**
 - Текущий IRR ({irr_4:.1f}%) {'>' if irr_4 > r*100 else '≤'} требуемой доходности ({r*100:.1f}%)
 - NPV проекта за 4 года составляет **{npv_4/1_000_000:.1f} млн руб**
+- Проект {'окупается' if npv_4 > 0 else 'не окупается'} за 4 года
 """
 )
+
+
+# =========================================================
+# СОВМЕСТНЫЙ ГРАФИК (ДОПОЛНИТЕЛЬНО)
+# =========================================================
+with st.expander("📊 Показать совмещенный график IRR и NPV"):
+    fig3, ax3 = plt.subplots(figsize=(12, 8))
+    
+    # Две оси Y
+    ax3_irr = ax3
+    ax3_npv = ax3_irr.twinx()
+    
+    # График IRR
+    mask = ~np.isnan(irr)
+    line1 = ax3_irr.plot(Y[mask], irr[mask] * 100, label='IRR', color='blue', linewidth=2)
+    ax3_irr.axhline(y=r*100, color='blue', linestyle='--', alpha=0.5, label=f'Ставка r ({r*100:.1f}%)')
+    
+    # График NPV
+    line2 = ax3_npv.plot(Y, npv / 1_000_000, label='NPV', color='green', linewidth=2)
+    ax3_npv.axhline(y=0, color='green', linestyle='--', alpha=0.5, label='NPV = 0')
+    
+    # Настройки осей
+    ax3_irr.set_xlim(0, 4)
+    ax3_irr.set_xlabel("Время, лет")
+    ax3_irr.set_ylabel("IRR, %", color='blue')
+    ax3_irr.tick_params(axis='y', labelcolor='blue')
+    
+    ax3_npv.set_ylabel("NPV, млн руб", color='green')
+    ax3_npv.tick_params(axis='y', labelcolor='green')
+    
+    # Объединение легенд
+    lines = line1 + line2
+    labels = [l.get_label() for l in lines]
+    ax3_irr.legend(lines, labels, loc='upper left')
+    
+    ax3.set_title("Совмещенный график IRR и NPV проекта (0-4 года)")
+    ax3.grid(True, alpha=0.3)
+    
+    st.pyplot(fig3)
+
 
 # =========================================================
 # ВЫВОД ФОРМУЛ
