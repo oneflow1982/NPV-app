@@ -16,26 +16,12 @@ def IRR(
     Ktg,        # закладываемый КТГ из-за РВД (доля)
     Tpl,        # плановое время работы в год, час
     Tvosstso,   # время восстановления при внедрении системы, час
-    Y           # время с начала проекта, лет
+    Y,          # время с начала проекта, лет
+    r           # ставка дисконтирования, доли
 ):
-    A = (
-        Msod * Tvosst
-        - Cp * Kteh * Ktg * Tpl * Tvosst
-        + Cp * Kteh * Ktg * Tpl * Tvosstso
-    )
+    NPV = np.exp(r * Y) * (np.exp(r * Y)-1) * (Msod * Tvosst + Cp * Kteh * Ktg * Tpl * (Tvosstso - Tvosst) / ( r * Tvosst ) - Mvn
 
-    W = lambertw(
-        (A * Y / (Mvn * Tvosst)) * np.exp((A * Y) / (Mvn * Tvosst))
-    )
-
-    irr = (
-        -Msod * Tvosst * Y
-        + Cp * Kteh * Ktg * Tpl * Tvosst * Y
-        - Cp * Kteh * Ktg * Tpl * Tvosstso * Y
-        + Mvn * Tvosst * W.real
-    ) / (Mvn * Tvosst * Y)
-
-    return irr
+   return NPV
 
 
 # =========================================================
@@ -46,7 +32,7 @@ st.set_page_config(
     layout="wide"
 )
 
-st.title("Интерактивный расчёт IRR проекта внедрения системы обслуживания РВД")
+st.title("Интерактивный расчёт NPV проекта внедрения системы обслуживания РВД")
 
 
 # =========================================================
@@ -60,7 +46,8 @@ BASE = {
     "Tvosst": 12.0,
     "Msod": 1_000_000,
     "Cp": 50_000,
-    "Ktg": 0.10
+    "Ktg": 0.10,
+    "r" : 0.25
 }
 
 for key, value in BASE.items():
@@ -87,8 +74,8 @@ st.sidebar.markdown("### Параметры проекта")
 Mvn = st.sidebar.number_input(
     "Стоимость внедрения системы обслуживания РВД, руб (Mvn)",
     min_value=1_000_000,
-    max_value=1_000_000_000,
-    step=1_000_000,
+    max_value=100_000_000,
+    step=500000,
     key="Mvn"
 )
 
@@ -148,13 +135,21 @@ Ktg = st.sidebar.number_input(
     key="Ktg"
 )
 
+r = st.sidebar.number_input(
+    "Ставка дисконтирования (доля, ≤ 1)",
+    min_value=0.0,
+    max_value=1.0,
+    step=0.01,
+    key="r"
+)
+
 
 # =========================================================
 # РАСЧЁТ
 # =========================================================
 Y = np.linspace(0.1, 4, 300)   # горизонт расчёта — 4 года
 
-irr = IRR(
+npv = NPV(
     Mvn=Mvn,
     Tvosst=Tvosst,
     Msod=Msod,
@@ -163,11 +158,12 @@ irr = IRR(
     Ktg=Ktg,
     Tpl=Tpl,
     Tvosstso=Tvosstso,
+    r=r,
     Y=Y
 )
 
-irr_2 = np.interp(2, Y, irr) * 100
-irr_4 = np.interp(4, Y, irr) * 100
+npv_2 = np.interp(2, Y, npv) 
+npv_4 = np.interp(4, Y, npv) 
 
 
 # =========================================================
@@ -175,8 +171,8 @@ irr_4 = np.interp(4, Y, irr) * 100
 # =========================================================
 col1, col2, col3 = st.columns(3)
 
-col1.metric("IRR на 2-м году", f"{irr_2:.2f} %")
-col2.metric("IRR на 4-м году", f"{irr_4:.2f} %")
+col1.metric("NPV на 2-м году", f"{npv_2:.2f} %")
+col2.metric("NPV на 4-м году", f"{npv_4:.2f} %")
 col3.metric("Капвложения", f"{Mvn/1_000_000:.1f} млн руб")
 
 
@@ -184,10 +180,10 @@ col3.metric("Капвложения", f"{Mvn/1_000_000:.1f} млн руб")
 # ГРАФИК
 # =========================================================
 fig, ax = plt.subplots()
-ax.plot(Y, irr * 100)
+ax.plot(Y, npv)
 ax.set_xlabel("Время, лет")
-ax.set_ylabel("IRR, %")
-ax.set_title("IRR проекта (горизонт расчёта — 4 года)")
+ax.set_ylabel("NPV, руб")
+ax.set_title("NPV проекта (горизонт расчёта — 4 года)")
 ax.grid(True)
 
 st.pyplot(fig)
@@ -207,8 +203,9 @@ st.write(
 **Экспл. затраты на содержание системы:** {Msod:,.0f} руб/год  
 **Время восстановления после отказа РВД:** {Tvosst} час  
 **Время восстановления при внедрении системы:** {Tvosstso} час  
-**Закладываемый КТГ из-за РВД:** {Ktg:.2f}  
+**Закладываемый КТГ из-за РВД:** {Ktg:.2f} 
+**Ставка дисконтирования:** {r:.2f}
 
-При заданных параметрах **IRR на горизонте 4 лет составляет {irr_4:.2f}%**.
+При заданных параметрах **NPV на горизонте 4 лет составляет {irr_4:.2f}%**.
 """
 )
