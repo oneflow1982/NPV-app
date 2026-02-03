@@ -19,7 +19,7 @@ def NPV(
     Y,          # время с начала проекта, лет
     r           # ставка дисконтирования, доли
 ):
-    NPV = np.exp(r * Y) * (np.exp(r * Y)-1) * (Msod * Tvosst + Cp * Kteh * Ktg * Tpl * (Tvosstso - Tvosst) / ( r * Tvosst ) - Mvn
+    NPV = np.exp(r * Y) * (np.exp(r * Y)-1) * (Msod * Tvosst + Cp * Kteh * Ktg * Tpl * (Tvosstso - Tvosst)) / ( r * Tvosst ) - Mvn
 
    return NPV
 
