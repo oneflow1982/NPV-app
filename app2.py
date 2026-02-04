@@ -99,7 +99,7 @@ BASE = {
     "Msod": 1_000_000,
     "Cp": 50_000,
     "Ktg": 0.10,
-    "r": 0.15  # добавлена ставка дисконтирования по умолчанию
+    "r": 0.25  # добавлена ставка дисконтирования по умолчанию
 }
 
 for key, value in BASE.items():
@@ -194,7 +194,7 @@ r = st.sidebar.number_input(
     min_value=0.0,
     max_value=1.0,
     step=0.01,
-    value=0.15,
+    value=0.25,
     key="r"
 )
 
