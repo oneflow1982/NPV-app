@@ -124,7 +124,7 @@ st.sidebar.markdown("### Параметры проекта")
 
 Mvn = st.sidebar.number_input(
     "Стоимость внедрения системы обслуживания РВД, руб (Mvn)",
-    min_value=1_000_000,
+    min_value=0_000_000,
     max_value=1_000_000_000,
     step=1_000_000,
     key="Mvn"
@@ -165,8 +165,8 @@ Tvosst = st.sidebar.number_input(
 Msod = st.sidebar.number_input(
     "Экспл. затраты на содержание системы, руб/год (Msod)",
     min_value=0,
-    max_value=50_000_000,
-    step=100_000,
+    max_value=500_000_000,
+    step=1_000,
     key="Msod"
 )
 
