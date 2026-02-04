@@ -124,9 +124,9 @@ st.sidebar.markdown("### Параметры проекта")
 
 Mvn = st.sidebar.number_input(
     "Стоимость внедрения системы обслуживания РВД, руб (Mvn)",
-    min_value=0_000_000,
+    min_value=1,
     max_value=1_000_000_000,
-    step=1_000_000,
+    step=1,
     key="Mvn"
 )
 
